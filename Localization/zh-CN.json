@@ -1,0 +1,13 @@
+{
+  "widget.zhihu.display_name": "知乎热榜",
+  "widget.category": "热榜",
+  "header.title": "知乎热榜",
+  "status.loading": "正在加载...",
+  "status.loading_short": "加载中...",
+  "status.updated_at": "更新于 {0:HH:mm}",
+  "status.empty": "暂无热榜数据",
+  "error.network": "网络连接失败",
+  "error.timeout": "请求超时",
+  "error.data_format": "数据格式错误",
+  "error.unknown": "获取失败"
+}

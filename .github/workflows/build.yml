@@ -1,0 +1,49 @@
+name: Build LanDesktopHot Plugin
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Build
+      run: dotnet build -c Release --no-restore
+
+    - name: Upload plugin package
+      uses: actions/upload-artifact@v4
+      with:
+        name: LanDesktopHot-plugin
+        path: |
+          **/*.laapp
+          !**/obj/**
+          !**/bin/**
+        if-no-files-found: warn
+        retention-days: 30
+
+    - name: Upload debug symbols
+      uses: actions/upload-artifact@v4
+      with:
+        name: LanDesktopHot-symbols
+        path: |
+          **/bin/Release/**/*.pdb
+        if-no-files-found: warn
+        retention-days: 7

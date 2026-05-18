@@ -1,0 +1,15 @@
+{
+  "minHostVersion": "0.7.4",
+  "iconUrl": "https://raw.githubusercontent.com/wwiinnddyy/LanDesktopHot/main/Assets/icon.png",
+  "projectUrl": "https://github.com/wwiinnddyy/LanDesktopHot",
+  "readmeUrl": "https://raw.githubusercontent.com/wwiinnddyy/LanDesktopHot/main/README.md",
+  "homepageUrl": "https://github.com/wwiinnddyy/LanDesktopHot",
+  "repositoryUrl": "https://github.com/wwiinnddyy/LanDesktopHot",
+  "tags": [
+    "hot-list",
+    "zhihu",
+    "trending",
+    "news"
+  ],
+  "releaseNotes": "First release: Zhihu hot list widget (4x4 cells) with auto-refresh, dark/light theme support, and click-to-open functionality."
+}

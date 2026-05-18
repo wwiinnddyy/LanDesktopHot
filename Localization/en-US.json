@@ -1,0 +1,13 @@
+{
+  "widget.zhihu.display_name": "Zhihu Hot List",
+  "widget.category": "Hot List",
+  "header.title": "Zhihu Hot List",
+  "status.loading": "Loading...",
+  "status.loading_short": "Loading...",
+  "status.updated_at": "Updated at {0:HH:mm}",
+  "status.empty": "No hot list data",
+  "error.network": "Network connection failed",
+  "error.timeout": "Request timeout",
+  "error.data_format": "Data format error",
+  "error.unknown": "Failed to fetch"
+}

@@ -1,0 +1,12 @@
+{
+  "id": "LanDesktopHot",
+  "name": "LanDesktopHot - 热榜插件",
+  "description": "为阑山桌面提供知乎等平台的热榜资讯组件。",
+  "author": "LanDesktopHot",
+  "version": "0.1.0",
+  "apiVersion": "5.0.0",
+  "entranceAssembly": "LanDesktopHot.dll",
+  "runtime": {
+    "mode": "in-proc"
+  }
+}
