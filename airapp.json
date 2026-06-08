@@ -1,0 +1,21 @@
+{
+  "id": "com.landesktop.hot",
+  "name": "LanDesktopHot 热榜",
+  "version": "1.0.0",
+  "apiVersion": "1.0.0",
+  "author": "LanDesktopHot",
+  "description": "为阑山桌面提供知乎等平台的热榜资讯组件。",
+  "entranceAssembly": "LanDesktopHot.dll",
+  "runtime": {
+    "mode": "in-process",
+    "capabilities": ["desktop-component"]
+  },
+  "components": [
+    {
+      "id": "zhihu-hotlist",
+      "name": "知乎热榜",
+      "defaultWidth": 4,
+      "defaultHeight": 4
+    }
+  ]
+}

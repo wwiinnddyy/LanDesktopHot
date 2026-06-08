@@ -12,20 +12,16 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
-using FluentIcons.Avalonia;
-using FluentIcons.Common;
+using FluentAvalonia.UI.Controls;
 using LanDesktopHot.Models;
 using LanDesktopHot.Services;
-using LanMountainDesktop.PluginSdk;
+using LanMountainDesktop.AirAppSdk;
 
 namespace LanDesktopHot.Widgets;
 
-public partial class ZhihuHotListWidget : UserControl
+public partial class ZhihuHotListWidget : AirAppWidgetBase
 {
-    private PluginDesktopComponentContext? _context;
-    private PluginLocalizer? _localizer;
     private ZhihuHotListService? _dataService;
-    private IPluginMessageBus? _messageBus;
 
     private readonly HttpClient _httpClient = new();
     private CancellationTokenSource? _cancellationTokenSource;
@@ -35,7 +31,6 @@ public partial class ZhihuHotListWidget : UserControl
     private List<ZhihuHotItem> _currentItems = [];
     private bool _isDarkMode;
 
-    private readonly List<IDisposable> _subscriptions = [];
     private bool _isDesignMode;
 
     private static class ThemeColors
@@ -73,14 +68,9 @@ public partial class ZhihuHotListWidget : UserControl
         }
     }
 
-    public ZhihuHotListWidget(
-        PluginDesktopComponentContext context,
-        ZhihuHotListService dataService) : this()
+    public ZhihuHotListWidget(ZhihuHotListService dataService) : this()
     {
-        _context = context;
-        _localizer = PluginLocalizer.Create(context);
         _dataService = dataService;
-        _messageBus = context.GetService<IPluginMessageBus>();
 
         _httpClient.Timeout = TimeSpan.FromSeconds(10);
 
@@ -91,18 +81,46 @@ public partial class ZhihuHotListWidget : UserControl
         _refreshTimer.Tick += async (_, _) => await RefreshAsync();
 
         _isDarkMode = ResolveIsDarkMode();
-        ApplyTheme();
 
         SetState(ComponentState.Loading);
 
-        AttachedToVisualTree += OnAttachedToVisualTree;
-        DetachedFromVisualTree += OnDetachedFromVisualTree;
         SizeChanged += OnSizeChanged;
         ActualThemeVariantChanged += OnThemeVariantChanged;
 
         RefreshButton.Click += async (_, _) => await RefreshAsync();
+    }
 
-        _context.Appearance.Changed += OnAppearanceChanged;
+    protected override void OnAttachedCore()
+    {
+        if (_isDesignMode) return;
+
+        _isDarkMode = ResolveIsDarkMode();
+        ApplyTheme();
+        _ = RefreshAsync();
+        _refreshTimer?.Start();
+    }
+
+    protected override void OnDetachedCore()
+    {
+        if (_isDesignMode) return;
+
+        _refreshTimer?.Stop();
+        _cancellationTokenSource?.Cancel();
+    }
+
+    protected override void OnAppearanceChangedCore(AirAppAppearanceSnapshot snapshot)
+    {
+        var newIsDarkMode = snapshot.IsDarkMode;
+        if (_isDarkMode != newIsDarkMode)
+        {
+            _isDarkMode = newIsDarkMode;
+            Dispatcher.UIThread.Post(() =>
+            {
+                ApplyTheme();
+                ApplyScale();
+                UpdateHotListPanel();
+            });
+        }
     }
 
     private void SetupDesignTimePreview()
@@ -191,9 +209,9 @@ public partial class ZhihuHotListWidget : UserControl
 
     private void ApplyTheme()
     {
-        if (_isDesignMode || _context is null) return;
+        if (_isDesignMode) return;
 
-        var cornerRadius = _context.CornerRadiusTokens.Component;
+        var cornerRadius = 12.0;
         RootBorder.CornerRadius = new CornerRadius(cornerRadius);
         CardBackground.CornerRadius = new CornerRadius(cornerRadius);
         CardBorder.CornerRadius = new CornerRadius(cornerRadius);
@@ -448,7 +466,7 @@ public partial class ZhihuHotListWidget : UserControl
 
     private Border CreateHotItemCard(ZhihuHotItem item, double titleSize, double detailSize, double rankSize, double basis)
     {
-        var cornerRadius = _isDesignMode ? 10d : _context?.CornerRadiusTokens.Sm ?? 14d;
+        var cornerRadius = _isDesignMode ? 10d : 14d;
         var cardCornerRadius = cornerRadius;
 
         var surfaceColor = _isDarkMode ? Color.Parse("#252B33") : Color.Parse("#F8F8F8");
@@ -516,10 +534,9 @@ public partial class ZhihuHotListWidget : UserControl
             });
         }
 
-        var hotIcon = new SymbolIcon
+        var hotIcon = new FontIcon
         {
-            Symbol = isTop3 ? Symbol.Fire : Symbol.ChevronRight,
-            IconVariant = isTop3 ? IconVariant.Filled : IconVariant.Regular,
+            Glyph = isTop3 ? "" : "",
             FontSize = detailSize * 1.1,
             Foreground = new SolidColorBrush(isTop3 ? ThemeColors.Top3 : textSecondaryColor),
             VerticalAlignment = VerticalAlignment.Center,
@@ -575,8 +592,8 @@ public partial class ZhihuHotListWidget : UserControl
     private void ApplyScale()
     {
         var basis = GetLayoutBasis();
-        var cornerRadius = _isDesignMode ? 24d : _context?.CornerRadiusTokens.Component ?? 24d;
-        var smRadius = _isDesignMode ? 10d : _context?.CornerRadiusTokens.Sm ?? 14d;
+        var cornerRadius = _isDesignMode ? 24d : 24d;
+        var smRadius = _isDesignMode ? 10d : 14d;
 
         RootBorder.CornerRadius = new CornerRadius(cornerRadius);
         CardBackground.CornerRadius = new CornerRadius(cornerRadius);
@@ -623,19 +640,20 @@ public partial class ZhihuHotListWidget : UserControl
             return Math.Min(Bounds.Width, Bounds.Height);
         }
 
-        var width = Bounds.Width > 1 ? Bounds.Width : _context!.CellSize * 4;
-        var height = Bounds.Height > 1 ? Bounds.Height : _context!.CellSize * 4;
-        return Math.Max(_context!.CellSize * 4, Math.Min(width, height));
+        var cellSize = 100.0;
+        var width = Bounds.Width > 1 ? Bounds.Width : cellSize * 4;
+        var height = Bounds.Height > 1 ? Bounds.Height : cellSize * 4;
+        return Math.Max(cellSize * 4, Math.Min(width, height));
     }
 
     private string T(string key, string fallback)
     {
-        return _localizer?.GetString(key, fallback) ?? fallback;
+        return fallback;
     }
 
     private string T(string key, string fallback, params object[] args)
     {
-        return _localizer?.Format(key, fallback, args) ?? string.Format(fallback, args);
+        return string.Format(fallback, args);
     }
 }
 

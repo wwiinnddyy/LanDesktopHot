@@ -1,53 +1,37 @@
 namespace LanDesktopHot;
 
-[PluginEntrance]
-public sealed class LanDesktopHotPlugin : PluginBase
+[AirAppEntrance]
+public sealed class LanDesktopHotPlugin : AirAppBase
 {
     public override void Initialize(HostBuilderContext context, IServiceCollection services)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(services);
 
-        var localizer = CreateLocalizer(context);
-
-        // Register data service
         services.AddSingleton<ZhihuHotListService>();
 
-        // Register the Zhihu hot list widget (4x4 cells)
-        services.AddPluginDesktopComponent<Widgets.ZhihuHotListWidget>(
-            CreateZhihuHotListComponentOptions(localizer));
+        services.AddAirAppComponent<Widgets.ZhihuHotListWidget>(
+            "zhihu-hotlist",
+            "知乎热榜",
+            options =>
+            {
+                options.Description = "实时展示知乎首页热榜";
+                options.DefaultWidth = 4;
+                options.DefaultHeight = 4;
+                options.ResizeMode = AirAppComponentResizeMode.Both;
+                options.Category = "资讯";
+                options.IconKey = "Globe";
+            });
     }
 
-    private static PluginLocalizer CreateLocalizer(HostBuilderContext context)
+    public override Task OnStartedAsync(IAirAppRuntimeContext context)
     {
-        var pluginDirectory = context.Properties.TryGetValue("LanMountainDesktop.PluginDirectory", out var directoryValue) &&
-                              directoryValue is string resolvedPluginDirectory &&
-                              !string.IsNullOrWhiteSpace(resolvedPluginDirectory)
-            ? resolvedPluginDirectory
-            : AppContext.BaseDirectory;
-
-        var properties = context.Properties
-            .Where(pair => pair.Key is string)
-            .ToDictionary(pair => (string)pair.Key, pair => (object?)pair.Value, StringComparer.OrdinalIgnoreCase);
-
-        return new PluginLocalizer(pluginDirectory, PluginLocalizer.ResolveLanguageCode(properties));
+        context.Logger.Info("LanDesktopHot AirApp started successfully!");
+        return Task.CompletedTask;
     }
 
-    private static PluginDesktopComponentOptions CreateZhihuHotListComponentOptions(PluginLocalizer localizer)
+    public override Task OnStoppingAsync()
     {
-        return new PluginDesktopComponentOptions
-        {
-            ComponentId = "LanDesktopHot.ZhihuHotList",
-            DisplayName = localizer.GetString("widget.zhihu.display_name", "知乎热榜"),
-            DisplayNameLocalizationKey = "widget.zhihu.display_name",
-            IconKey = "Globe",
-            Category = localizer.GetString("widget.category", "热榜"),
-            MinWidthCells = 4,
-            MinHeightCells = 4,
-            AllowDesktopPlacement = true,
-            AllowStatusBarPlacement = false,
-            ResizeMode = PluginDesktopComponentResizeMode.Proportional,
-            CornerRadiusPreset = PluginCornerRadiusPreset.Default
-        };
+        return Task.CompletedTask;
     }
 }
