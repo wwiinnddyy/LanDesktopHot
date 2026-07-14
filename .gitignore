@@ -35,6 +35,10 @@ ScaffoldingReadMe.txt
 *.nupkg
 # NuGet Symbol Packages
 *.snupkg
+*.laapp
+!LanDesktopHot.0.2.0.laapp
+packages/
+.nuget/
 
 # Others
 ~$*

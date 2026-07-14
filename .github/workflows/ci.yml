@@ -1,0 +1,70 @@
+name: LanDesktopHot Plugin CI
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: "10.0.x"
+  LMD_REPOSITORY: wwiinnddyy/LanMountainDesktop
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout plugin
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Checkout LanMountainDesktop
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ env.LMD_REPOSITORY }}
+          fetch-depth: 0
+          path: LanMountainDesktop
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Initialize local Plugin SDK feed
+        shell: pwsh
+        run: |
+          .\scripts\Initialize-LocalPackageFeed.ps1 `
+            -FeedPath (Join-Path (Resolve-Path ".").Path "packages") `
+            -PluginSdkProjectPath (Resolve-Path ".\LanMountainDesktop\LanMountainDesktop.PluginSdk\LanMountainDesktop.PluginSdk.csproj").Path `
+            -CoreContractsProjectPath (Resolve-Path ".\LanMountainDesktop\LanMountainDesktop.Shared.Contracts\LanMountainDesktop.Shared.Contracts.csproj").Path `
+            -PluginIsolationContractsProjectPath (Resolve-Path ".\LanMountainDesktop\LanMountainDesktop.PluginIsolation.Contracts\LanMountainDesktop.PluginIsolation.Contracts.csproj").Path `
+            -SharedIpcProjectPath (Resolve-Path ".\LanMountainDesktop\LanMountainDesktop.Shared.IPC\LanMountainDesktop.Shared.IPC.csproj").Path
+
+      - name: Build, package and validate
+        shell: pwsh
+        run: .\scripts\build-local.ps1 -SkipLocalPackageFeed -Configuration Release
+
+      - name: Resolve artifact name
+        id: metadata
+        shell: pwsh
+        run: |
+          $manifest = Get-Content .\plugin.json -Encoding UTF8 -Raw | ConvertFrom-Json
+          "asset_name=$($manifest.id).$($manifest.version).laapp" >> $env:GITHUB_OUTPUT
+
+      - name: Upload CI artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: landesktophot-plugin-ci
+          path: |
+            ${{ steps.metadata.outputs.asset_name }}
+            artifacts/market-manifest.json
+            artifacts/sha256.txt
+            artifacts/md5.txt
+          if-no-files-found: error
+          retention-days: 14

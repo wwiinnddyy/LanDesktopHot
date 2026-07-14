@@ -1,61 +1,74 @@
-# LanDesktopHot - 阑山桌面热榜插件
+# LanDesktopHot
 
-为 [阑山桌面 (LanMountainDesktop)](https://github.com/wwiinnddyy/LanMountainDesktop) 提供知乎等平台的热榜资讯组件。
+为阑山桌面（LanMountainDesktop）提供知乎热榜桌面组件。
 
 ## 功能
 
-- **知乎热榜**：实时展示知乎首页热榜，支持点击跳转问题页
-- 4×4 单元格组件，响应式缩放
-- 支持明暗主题切换
-- 定时自动刷新（每 5 分钟）
-- 支持中英文
+- 4×4 默认尺寸，可自由调整大小。
+- 自动读取知乎热榜，网络失败时保留最近一次有效数据。
+- 每 5 分钟自动刷新，也可以手动刷新。
+- 跟随宿主明暗主题与 Plugin SDK 5 圆角令牌。
+- 点击榜单条目后用系统浏览器打开详情。
+- 中英文资源随插件包发布。
 
-## 安装
+## 兼容版本
 
-1. 从 [Releases](https://github.com/wwiinnddyy/LanDesktopHot/releases) 下载最新的 `.laapp` 文件
-2. 在阑山桌面中双击安装，或通过插件市场安装程序导入
-3. 在组件库中找到"知乎热榜"组件，添加到桌面
+- .NET 10
+- LanMountainDesktop.PluginSdk 5.0.0
+- Avalonia 12.1.0
+- FluentAvaloniaUI 3.0.1
+- FluentIcons.Avalonia 2.1.331
+- 最低宿主版本 0.8.6
 
-## 构建
+本仓库只使用生产插件清单 `plugin.json`。旧版 `airapp.json` 和
+`LanMountainDesktop.AirAppSdk` 已淘汰，不会进入构建或发布包。
 
-```bash
-dotnet restore
-dotnet build -c Release
+## 本地构建
+
+将 `LanMountainDesktop` 克隆到本仓库同级目录后运行：
+
+```powershell
+.\scripts\build-local.ps1
 ```
 
-构建产物位于 `bin/Release/net10.0/content/` 目录下，包含 `.laapp` 插件包。
+恢复过程固定使用仓内 `.nuget/packages`，并通过 `--force --no-cache` 避免同版本
+SDK 包受到机器级全局缓存污染。
+
+脚本会打包当前宿主源码中的 Plugin SDK 及其 contracts，执行 restore/build、
+校验包内清单，并生成：
+
+- `LanDesktopHot.0.2.0.laapp`
+- `artifacts/market-manifest.json`（市场 release manifest schema v2）
+- `artifacts/sha256.txt`
+- `artifacts/md5.txt`
+
+如果 `packages/` 已经包含可用的 SDK 5 本地包，可以跳过重新打包 SDK：
+
+```powershell
+.\scripts\build-local.ps1 -SkipLocalPackageFeed
+```
+
+也可以只运行一致性校验：
+
+```powershell
+.\scripts\Test-PluginConsistency.ps1 `
+  -RepositoryRoot (Resolve-Path ".").Path `
+  -PackagePath .\LanDesktopHot.0.2.0.laapp
+```
+
+## 发布
+
+- `LanDesktopHot Plugin CI` 在 push / PR 时构建、验证并上传插件包和市场 v2 清单。
+- `LanDesktopHot Plugin Release` 为手动工作流；输入必须与 `plugin.json` 完全一致的版本号。
+- Release 默认创建 draft prerelease，安装验证通过后再由维护者提升为正式版本。
 
 ## 项目结构
 
-```
-LanDesktopHot/
-├── Plugin.cs                      # 插件入口
-├── plugin.json                    # 插件清单
-├── Widgets/
-│   └── ZhihuHotListWidget.axaml   # 知乎热榜组件
-│   └── ZhihuHotListWidget.axaml.cs
-├── Models/
-│   └── ZhihuHotItem.cs            # 数据模型
-├── Services/
-│   └── ZhihuHotListService.cs     # 数据获取服务
-├── Messages/
-│   └── ZhihuDataRefreshMessage.cs # 刷新消息
-├── Localization/                  # 本地化文件
-│   ├── zh-CN.json
-│   └── en-US.json
-└── .github/workflows/
-    └── build.yml                  # CI/CD 工作流
-```
-
-## 技术栈
-
-- .NET 10 / Avalonia 12
-- FluentIcons.Avalonia 2.1.325
-- LanMountainDesktop.PluginSdk 5.0.0
-
-## 免责声明
-
-本插件通过解析知乎公开页面获取数据，仅供学习研究使用。请遵守知乎相关服务条款。
+- `Plugin.cs`：Plugin SDK 5 入口和桌面组件注册。
+- `Widgets/ZhihuHotListWidget.*`：组件界面与交互。
+- `Services/ZhihuHotListService.cs`：知乎数据请求、解析与缓存。
+- `Localization/`：中英文资源。
+- `scripts/`：SDK feed、构建打包、市场 v2 和一致性校验脚本。
 
 ## 许可证
 

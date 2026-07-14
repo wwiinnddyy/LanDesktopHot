@@ -1,7 +1,7 @@
 namespace LanDesktopHot;
 
-[AirAppEntrance]
-public sealed class LanDesktopHotPlugin : AirAppBase
+[PluginEntrance]
+public sealed class LanDesktopHotPlugin : PluginBase
 {
     public override void Initialize(HostBuilderContext context, IServiceCollection services)
     {
@@ -10,28 +10,19 @@ public sealed class LanDesktopHotPlugin : AirAppBase
 
         services.AddSingleton<ZhihuHotListService>();
 
-        services.AddAirAppComponent<Widgets.ZhihuHotListWidget>(
-            "zhihu-hotlist",
-            "知乎热榜",
-            options =>
-            {
-                options.Description = "实时展示知乎首页热榜";
-                options.DefaultWidth = 4;
-                options.DefaultHeight = 4;
-                options.ResizeMode = AirAppComponentResizeMode.Both;
-                options.Category = "资讯";
-                options.IconKey = "Globe";
-            });
-    }
-
-    public override Task OnStartedAsync(IAirAppRuntimeContext context)
-    {
-        context.Logger.Info("LanDesktopHot AirApp started successfully!");
-        return Task.CompletedTask;
-    }
-
-    public override Task OnStoppingAsync()
-    {
-        return Task.CompletedTask;
+        services.AddPluginDesktopComponent<Widgets.ZhihuHotListWidget>(new PluginDesktopComponentOptions
+        {
+            ComponentId = "zhihu-hotlist",
+            DisplayName = "知乎热榜",
+            DisplayNameLocalizationKey = "widget.zhihu.display_name",
+            IconKey = "Globe",
+            Category = "资讯",
+            MinWidthCells = 4,
+            MinHeightCells = 4,
+            AllowDesktopPlacement = true,
+            AllowStatusBarPlacement = false,
+            ResizeMode = PluginDesktopComponentResizeMode.Free,
+            CornerRadiusPreset = PluginCornerRadiusPreset.Component
+        });
     }
 }

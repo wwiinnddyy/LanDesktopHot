@@ -1,0 +1,109 @@
+# Manual release only. Update the project and plugin.json version before running.
+name: LanDesktopHot Plugin Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_version:
+        description: "Must match plugin.json version exactly"
+        required: true
+        type: string
+
+env:
+  DOTNET_VERSION: "10.0.x"
+  LMD_REPOSITORY: wwiinnddyy/LanMountainDesktop
+
+permissions:
+  contents: write
+
+concurrency:
+  group: landesktophot-plugin-release-${{ github.event.inputs.confirm_version || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout plugin
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Checkout LanMountainDesktop
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ env.LMD_REPOSITORY }}
+          fetch-depth: 0
+          path: LanMountainDesktop
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Initialize local Plugin SDK feed
+        shell: pwsh
+        run: |
+          .\scripts\Initialize-LocalPackageFeed.ps1 `
+            -FeedPath (Join-Path (Resolve-Path ".").Path "packages") `
+            -PluginSdkProjectPath (Resolve-Path ".\LanMountainDesktop\LanMountainDesktop.PluginSdk\LanMountainDesktop.PluginSdk.csproj").Path `
+            -CoreContractsProjectPath (Resolve-Path ".\LanMountainDesktop\LanMountainDesktop.Shared.Contracts\LanMountainDesktop.Shared.Contracts.csproj").Path `
+            -PluginIsolationContractsProjectPath (Resolve-Path ".\LanMountainDesktop\LanMountainDesktop.PluginIsolation.Contracts\LanMountainDesktop.PluginIsolation.Contracts.csproj").Path `
+            -SharedIpcProjectPath (Resolve-Path ".\LanMountainDesktop\LanMountainDesktop.Shared.IPC\LanMountainDesktop.Shared.IPC.csproj").Path
+
+      - name: Resolve release metadata
+        id: metadata
+        shell: pwsh
+        run: |
+          $manifest = Get-Content .\plugin.json -Encoding UTF8 -Raw | ConvertFrom-Json
+          $version = $manifest.version.Trim()
+          $requested = "${{ github.event.inputs.confirm_version }}".Trim()
+          if ($requested.StartsWith("v", [System.StringComparison]::OrdinalIgnoreCase)) {
+            $requested = $requested.Substring(1)
+          }
+          if ($requested -ne $version) {
+            throw "Confirmed version '$requested' does not match plugin.json '$version'."
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "release_tag=v$version" >> $env:GITHUB_OUTPUT
+          "asset_name=$($manifest.id).$version.laapp" >> $env:GITHUB_OUTPUT
+
+      - name: Build, package and validate
+        shell: pwsh
+        run: .\scripts\build-local.ps1 -SkipLocalPackageFeed -Configuration Release
+
+      - name: Create release notes
+        shell: pwsh
+        run: |
+          $sha256 = Get-Content .\artifacts\sha256.txt -Raw
+          $md5 = Get-Content .\artifacts\md5.txt -Raw
+          @"
+          ## ${{ steps.metadata.outputs.release_tag }}
+
+          - Package: ``${{ steps.metadata.outputs.asset_name }}``
+          - Plugin API: ``5.0.0``
+          - Minimum host: ``0.8.6``
+          - Market manifest: ``market-manifest.json``
+          - SHA256: ``$($sha256.Trim())``
+          - MD5: ``$($md5.Trim())``
+          "@ | Set-Content -Path .\artifacts\release-notes.md -Encoding utf8
+
+      - name: Create draft prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.metadata.outputs.release_tag }}
+          name: ${{ steps.metadata.outputs.release_tag }}
+          body_path: artifacts/release-notes.md
+          files: |
+            ${{ steps.metadata.outputs.asset_name }}
+            artifacts/market-manifest.json
+            artifacts/sha256.txt
+            artifacts/md5.txt
+          fail_on_unmatched_files: true
+          overwrite_files: true
+          draft: true
+          prerelease: true
+          make_latest: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,6 +1,6 @@
 {
-  "minHostVersion": "0.7.4",
-  "iconUrl": "https://raw.githubusercontent.com/wwiinnddyy/LanDesktopHot/main/Assets/icon.png",
+  "minHostVersion": "0.8.6",
+  "iconUrl": "",
   "projectUrl": "https://github.com/wwiinnddyy/LanDesktopHot",
   "readmeUrl": "https://raw.githubusercontent.com/wwiinnddyy/LanDesktopHot/main/README.md",
   "homepageUrl": "https://github.com/wwiinnddyy/LanDesktopHot",
@@ -9,7 +9,12 @@
     "hot-list",
     "zhihu",
     "trending",
-    "news"
+    "news",
+    "desktop-widget"
   ],
-  "releaseNotes": "First release: Zhihu hot list widget (4x4 cells) with auto-refresh, dark/light theme support, and click-to-open functionality."
+  "desktopComponents": [
+    "zhihu-hotlist"
+  ],
+  "settingsSections": [],
+  "releaseNotes": "Migrated to production Plugin SDK 5, Avalonia 12 and FluentAvalonia 3; retained the Zhihu hot-list widget, auto refresh, theme awareness and click-to-open behavior."
 }

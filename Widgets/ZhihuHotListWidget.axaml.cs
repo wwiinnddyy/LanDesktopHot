@@ -12,18 +12,20 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
-using FluentAvalonia.UI.Controls;
 using LanDesktopHot.Models;
 using LanDesktopHot.Services;
-using LanMountainDesktop.AirAppSdk;
+using LanMountainDesktop.PluginSdk;
 
 namespace LanDesktopHot.Widgets;
 
-public partial class ZhihuHotListWidget : AirAppWidgetBase
+public partial class ZhihuHotListWidget : UserControl
 {
+    private PluginDesktopComponentContext? _context;
+    private PluginLocalizer? _localizer;
+    private IPluginMessageBus? _messageBus;
+    private readonly List<IDisposable> _subscriptions = [];
     private ZhihuHotListService? _dataService;
 
-    private readonly HttpClient _httpClient = new();
     private CancellationTokenSource? _cancellationTokenSource;
     private DispatcherTimer? _refreshTimer;
 
@@ -62,17 +64,21 @@ public partial class ZhihuHotListWidget : AirAppWidgetBase
         InitializeComponent();
 
         _isDesignMode = Design.IsDesignMode;
+        SizeChanged += OnSizeChanged;
         if (_isDesignMode)
         {
             SetupDesignTimePreview();
         }
     }
 
-    public ZhihuHotListWidget(ZhihuHotListService dataService) : this()
+    public ZhihuHotListWidget(
+        PluginDesktopComponentContext context,
+        ZhihuHotListService dataService) : this()
     {
+        _context = context;
+        _localizer = PluginLocalizer.Create(context);
+        _messageBus = context.GetService<IPluginMessageBus>();
         _dataService = dataService;
-
-        _httpClient.Timeout = TimeSpan.FromSeconds(10);
 
         _refreshTimer = new DispatcherTimer
         {
@@ -84,43 +90,11 @@ public partial class ZhihuHotListWidget : AirAppWidgetBase
 
         SetState(ComponentState.Loading);
 
-        SizeChanged += OnSizeChanged;
+        AttachedToVisualTree += OnAttachedToVisualTree;
+        DetachedFromVisualTree += OnDetachedFromVisualTree;
         ActualThemeVariantChanged += OnThemeVariantChanged;
 
         RefreshButton.Click += async (_, _) => await RefreshAsync();
-    }
-
-    protected override void OnAttachedCore()
-    {
-        if (_isDesignMode) return;
-
-        _isDarkMode = ResolveIsDarkMode();
-        ApplyTheme();
-        _ = RefreshAsync();
-        _refreshTimer?.Start();
-    }
-
-    protected override void OnDetachedCore()
-    {
-        if (_isDesignMode) return;
-
-        _refreshTimer?.Stop();
-        _cancellationTokenSource?.Cancel();
-    }
-
-    protected override void OnAppearanceChangedCore(AirAppAppearanceSnapshot snapshot)
-    {
-        var newIsDarkMode = snapshot.IsDarkMode;
-        if (_isDarkMode != newIsDarkMode)
-        {
-            _isDarkMode = newIsDarkMode;
-            Dispatcher.UIThread.Post(() =>
-            {
-                ApplyTheme();
-                ApplyScale();
-                UpdateHotListPanel();
-            });
-        }
     }
 
     private void SetupDesignTimePreview()
@@ -211,7 +185,7 @@ public partial class ZhihuHotListWidget : AirAppWidgetBase
     {
         if (_isDesignMode) return;
 
-        var cornerRadius = 12.0;
+        var cornerRadius = ResolveCornerRadius(PluginCornerRadiusPreset.Component, 24, 12, 36);
         RootBorder.CornerRadius = new CornerRadius(cornerRadius);
         CardBackground.CornerRadius = new CornerRadius(cornerRadius);
         CardBorder.CornerRadius = new CornerRadius(cornerRadius);
@@ -289,6 +263,12 @@ public partial class ZhihuHotListWidget : AirAppWidgetBase
     private void OnAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
     {
         if (_isDesignMode) return;
+
+        if (_context is not null)
+        {
+            _context.Appearance.Changed -= OnAppearanceChanged;
+            _context.Appearance.Changed += OnAppearanceChanged;
+        }
 
         SubscribeToPluginBus();
         _isDarkMode = ResolveIsDarkMode();
@@ -466,7 +446,7 @@ public partial class ZhihuHotListWidget : AirAppWidgetBase
 
     private Border CreateHotItemCard(ZhihuHotItem item, double titleSize, double detailSize, double rankSize, double basis)
     {
-        var cornerRadius = _isDesignMode ? 10d : 14d;
+        var cornerRadius = ResolveCornerRadius(PluginCornerRadiusPreset.Md, 14, 8, 24);
         var cardCornerRadius = cornerRadius;
 
         var surfaceColor = _isDarkMode ? Color.Parse("#252B33") : Color.Parse("#F8F8F8");
@@ -534,26 +514,15 @@ public partial class ZhihuHotListWidget : AirAppWidgetBase
             });
         }
 
-        var hotIcon = new FontIcon
-        {
-            Glyph = isTop3 ? "" : "",
-            FontSize = detailSize * 1.1,
-            Foreground = new SolidColorBrush(isTop3 ? ThemeColors.Top3 : textSecondaryColor),
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Right
-        };
-
         var contentGrid = new Grid
         {
-            ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"),
+            ColumnDefinitions = new ColumnDefinitions("Auto,*"),
             ColumnSpacing = 8
         };
 
         contentGrid.Children.Add(rankBadge);
         contentGrid.Children.Add(infoPanel);
-        contentGrid.Children.Add(hotIcon);
         Grid.SetColumn(infoPanel, 1);
-        Grid.SetColumn(hotIcon, 2);
 
         var card = new Border
         {
@@ -592,8 +561,8 @@ public partial class ZhihuHotListWidget : AirAppWidgetBase
     private void ApplyScale()
     {
         var basis = GetLayoutBasis();
-        var cornerRadius = _isDesignMode ? 24d : 24d;
-        var smRadius = _isDesignMode ? 10d : 14d;
+        var cornerRadius = ResolveCornerRadius(PluginCornerRadiusPreset.Component, 24, 12, 36);
+        var smRadius = ResolveCornerRadius(PluginCornerRadiusPreset.Md, 14, 8, 24);
 
         RootBorder.CornerRadius = new CornerRadius(cornerRadius);
         CardBackground.CornerRadius = new CornerRadius(cornerRadius);
@@ -608,7 +577,8 @@ public partial class ZhihuHotListWidget : AirAppWidgetBase
         var iconBadgeSize = Math.Clamp(basis * 0.08, 32, 42);
         HeaderIconBadge.Width = iconBadgeSize;
         HeaderIconBadge.Height = iconBadgeSize;
-        HeaderIconBadge.CornerRadius = new CornerRadius(iconBadgeSize * 0.28);
+        HeaderIconBadge.CornerRadius = new CornerRadius(
+            ResolveCornerRadius(PluginCornerRadiusPreset.Sm, iconBadgeSize * 0.28, 4, iconBadgeSize / 2));
         HeaderIcon.FontSize = Math.Clamp(basis * 0.04, 14, 20);
 
         HeaderStack.Spacing = Math.Clamp(basis * 0.005, 1, 4);
@@ -648,12 +618,21 @@ public partial class ZhihuHotListWidget : AirAppWidgetBase
 
     private string T(string key, string fallback)
     {
-        return fallback;
+        return _localizer?.GetString(key, fallback) ?? fallback;
     }
 
     private string T(string key, string fallback, params object[] args)
     {
-        return string.Format(fallback, args);
+        return _localizer?.Format(key, fallback, args) ?? string.Format(fallback, args);
+    }
+
+    private double ResolveCornerRadius(
+        PluginCornerRadiusPreset preset,
+        double fallback,
+        double minimum,
+        double maximum)
+    {
+        return _context?.ResolveCornerRadius(preset, minimum, maximum) ?? fallback;
     }
 }
 
