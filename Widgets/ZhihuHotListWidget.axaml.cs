@@ -12,20 +12,19 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using FluentAvalonia.UI.Controls;
 using LanDesktopHot.Models;
 using LanDesktopHot.Services;
-using LanMountainDesktop.PluginSdk;
+using LanMountainDesktop.AirAppSdk;
 
 namespace LanDesktopHot.Widgets;
 
 public partial class ZhihuHotListWidget : UserControl
 {
-    private PluginDesktopComponentContext? _context;
-    private PluginLocalizer? _localizer;
-    private IPluginMessageBus? _messageBus;
-    private readonly List<IDisposable> _subscriptions = [];
+    private readonly AirAppComponentContext? _context;
     private ZhihuHotListService? _dataService;
 
+    private readonly HttpClient _httpClient = new();
     private CancellationTokenSource? _cancellationTokenSource;
     private DispatcherTimer? _refreshTimer;
 
@@ -64,21 +63,19 @@ public partial class ZhihuHotListWidget : UserControl
         InitializeComponent();
 
         _isDesignMode = Design.IsDesignMode;
-        SizeChanged += OnSizeChanged;
         if (_isDesignMode)
         {
             SetupDesignTimePreview();
         }
     }
 
-    public ZhihuHotListWidget(
-        PluginDesktopComponentContext context,
-        ZhihuHotListService dataService) : this()
+    public ZhihuHotListWidget(AirAppComponentContext context, ZhihuHotListService dataService) : this()
     {
-        _context = context;
-        _localizer = PluginLocalizer.Create(context);
-        _messageBus = context.GetService<IPluginMessageBus>();
+        _context = context ?? throw new ArgumentNullException(nameof(context));
+        _context.Appearance.Changed += OnAppearanceChangedRaw;
         _dataService = dataService;
+
+        _httpClient.Timeout = TimeSpan.FromSeconds(10);
 
         _refreshTimer = new DispatcherTimer
         {
@@ -90,11 +87,60 @@ public partial class ZhihuHotListWidget : UserControl
 
         SetState(ComponentState.Loading);
 
-        AttachedToVisualTree += OnAttachedToVisualTree;
-        DetachedFromVisualTree += OnDetachedFromVisualTree;
+        SizeChanged += OnSizeChanged;
         ActualThemeVariantChanged += OnThemeVariantChanged;
 
         RefreshButton.Click += async (_, _) => await RefreshAsync();
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+
+        if (_isDesignMode) return;
+
+        _isDarkMode = ResolveIsDarkMode();
+        ApplyTheme();
+        _ = RefreshAsync();
+        _refreshTimer?.Start();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+
+        if (_isDesignMode) return;
+
+        _refreshTimer?.Stop();
+        _cancellationTokenSource?.Cancel();
+
+        if (_context is not null)
+        {
+            _context.Appearance.Changed -= OnAppearanceChangedRaw;
+        }
+    }
+
+    private void OnAppearanceChangedRaw(object? sender, AppearanceChangedEvent e)
+    {
+        if (_context is not null)
+        {
+            OnAppearanceChanged(_context.Appearance.Snapshot);
+        }
+    }
+
+    private void OnAppearanceChanged(AirAppAppearanceSnapshot snapshot)
+    {
+        var newIsDarkMode = string.Equals(snapshot.ThemeVariant, "Dark", StringComparison.OrdinalIgnoreCase);
+        if (_isDarkMode != newIsDarkMode)
+        {
+            _isDarkMode = newIsDarkMode;
+            Dispatcher.UIThread.Post(() =>
+            {
+                ApplyTheme();
+                ApplyScale();
+                UpdateHotListPanel();
+            });
+        }
     }
 
     private void SetupDesignTimePreview()
@@ -185,7 +231,7 @@ public partial class ZhihuHotListWidget : UserControl
     {
         if (_isDesignMode) return;
 
-        var cornerRadius = ResolveCornerRadius(PluginCornerRadiusPreset.Component, 24, 12, 36);
+        var cornerRadius = 12.0;
         RootBorder.CornerRadius = new CornerRadius(cornerRadius);
         CardBackground.CornerRadius = new CornerRadius(cornerRadius);
         CardBorder.CornerRadius = new CornerRadius(cornerRadius);
@@ -260,81 +306,9 @@ public partial class ZhihuHotListWidget : UserControl
         EmptyText.Foreground = new SolidColorBrush(ThemeColors.DarkTextSecondary);
     }
 
-    private void OnAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
-    {
-        if (_isDesignMode) return;
-
-        if (_context is not null)
-        {
-            _context.Appearance.Changed -= OnAppearanceChanged;
-            _context.Appearance.Changed += OnAppearanceChanged;
-        }
-
-        SubscribeToPluginBus();
-        _isDarkMode = ResolveIsDarkMode();
-        ApplyTheme();
-        _ = RefreshAsync();
-        _refreshTimer?.Start();
-    }
-
-    private void OnDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
-    {
-        if (_isDesignMode) return;
-
-        _refreshTimer?.Stop();
-        _cancellationTokenSource?.Cancel();
-
-        foreach (var subscription in _subscriptions)
-        {
-            subscription.Dispose();
-        }
-        _subscriptions.Clear();
-
-        if (_context is not null)
-        {
-            _context.Appearance.Changed -= OnAppearanceChanged;
-        }
-    }
-
     private void OnSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         ApplyScale();
-    }
-
-    private void OnAppearanceChanged(object? sender, AppearanceChangedEvent e)
-    {
-        if (_context is null) return;
-
-        var shouldRefresh = e.ChangedProperties.Count == 0 ||
-            e.CornerRadiusChanged ||
-            e.ThemeVariantChanged;
-
-        if (shouldRefresh)
-        {
-            var newIsDarkMode = ResolveIsDarkMode();
-            if (_isDarkMode != newIsDarkMode)
-            {
-                _isDarkMode = newIsDarkMode;
-            }
-
-            Dispatcher.UIThread.Post(() =>
-            {
-                ApplyTheme();
-                ApplyScale();
-                UpdateHotListPanel();
-            });
-        }
-    }
-
-    private void SubscribeToPluginBus()
-    {
-        if (_messageBus is null || _subscriptions.Count > 0)
-        {
-            return;
-        }
-
-        _subscriptions.Add(_messageBus.Subscribe<ZhihuDataRefreshMessage>(_ =>
-            Dispatcher.UIThread.Post(async () => await RefreshAsync())));
     }
 
     public async Task RefreshAsync()
@@ -446,7 +420,7 @@ public partial class ZhihuHotListWidget : UserControl
 
     private Border CreateHotItemCard(ZhihuHotItem item, double titleSize, double detailSize, double rankSize, double basis)
     {
-        var cornerRadius = ResolveCornerRadius(PluginCornerRadiusPreset.Md, 14, 8, 24);
+        var cornerRadius = _isDesignMode ? 10d : 14d;
         var cardCornerRadius = cornerRadius;
 
         var surfaceColor = _isDarkMode ? Color.Parse("#252B33") : Color.Parse("#F8F8F8");
@@ -514,15 +488,26 @@ public partial class ZhihuHotListWidget : UserControl
             });
         }
 
+        var hotIcon = new FAFontIcon
+        {
+            Glyph = isTop3 ? "" : "",
+            FontSize = detailSize * 1.1,
+            Foreground = new SolidColorBrush(isTop3 ? ThemeColors.Top3 : textSecondaryColor),
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+
         var contentGrid = new Grid
         {
-            ColumnDefinitions = new ColumnDefinitions("Auto,*"),
+            ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"),
             ColumnSpacing = 8
         };
 
         contentGrid.Children.Add(rankBadge);
         contentGrid.Children.Add(infoPanel);
+        contentGrid.Children.Add(hotIcon);
         Grid.SetColumn(infoPanel, 1);
+        Grid.SetColumn(hotIcon, 2);
 
         var card = new Border
         {
@@ -561,8 +546,8 @@ public partial class ZhihuHotListWidget : UserControl
     private void ApplyScale()
     {
         var basis = GetLayoutBasis();
-        var cornerRadius = ResolveCornerRadius(PluginCornerRadiusPreset.Component, 24, 12, 36);
-        var smRadius = ResolveCornerRadius(PluginCornerRadiusPreset.Md, 14, 8, 24);
+        var cornerRadius = _isDesignMode ? 24d : 24d;
+        var smRadius = _isDesignMode ? 10d : 14d;
 
         RootBorder.CornerRadius = new CornerRadius(cornerRadius);
         CardBackground.CornerRadius = new CornerRadius(cornerRadius);
@@ -577,8 +562,7 @@ public partial class ZhihuHotListWidget : UserControl
         var iconBadgeSize = Math.Clamp(basis * 0.08, 32, 42);
         HeaderIconBadge.Width = iconBadgeSize;
         HeaderIconBadge.Height = iconBadgeSize;
-        HeaderIconBadge.CornerRadius = new CornerRadius(
-            ResolveCornerRadius(PluginCornerRadiusPreset.Sm, iconBadgeSize * 0.28, 4, iconBadgeSize / 2));
+        HeaderIconBadge.CornerRadius = new CornerRadius(iconBadgeSize * 0.28);
         HeaderIcon.FontSize = Math.Clamp(basis * 0.04, 14, 20);
 
         HeaderStack.Spacing = Math.Clamp(basis * 0.005, 1, 4);
@@ -618,21 +602,12 @@ public partial class ZhihuHotListWidget : UserControl
 
     private string T(string key, string fallback)
     {
-        return _localizer?.GetString(key, fallback) ?? fallback;
+        return fallback;
     }
 
     private string T(string key, string fallback, params object[] args)
     {
-        return _localizer?.Format(key, fallback, args) ?? string.Format(fallback, args);
-    }
-
-    private double ResolveCornerRadius(
-        PluginCornerRadiusPreset preset,
-        double fallback,
-        double minimum,
-        double maximum)
-    {
-        return _context?.ResolveCornerRadius(preset, minimum, maximum) ?? fallback;
+        return string.Format(fallback, args);
     }
 }
 

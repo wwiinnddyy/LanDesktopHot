@@ -4,37 +4,17 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <Version>0.2.0</Version>
-    <RestorePackagesPath>$(MSBuildProjectDirectory)\.nuget\packages</RestorePackagesPath>
+    <Version>1.0.0</Version>
     <EnableDynamicLoading>true</EnableDynamicLoading>
-    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
-    <OutputPath>bin\$(Configuration)\$(TargetFramework)\content\</OutputPath>
-    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
-    <LanMountainPluginBuildOutputDirectory>$(OutputPath)</LanMountainPluginBuildOutputDirectory>
-    <LanMountainPluginPackageVersion>$(Version)</LanMountainPluginPackageVersion>
-    <LanMountainPluginPackageOutputDirectory>$(MSBuildThisFileDirectory)</LanMountainPluginPackageOutputDirectory>
-    <LanMountainPluginPackageFileName>LanDesktopHot.$(LanMountainPluginPackageVersion)$(LanMountainPluginPackageExtension)</LanMountainPluginPackageFileName>
-    <LanMountainPluginPackagePath>$(LanMountainPluginPackageOutputDirectory)$(LanMountainPluginPackageFileName)</LanMountainPluginPackagePath>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Avalonia" Version="12.1.0" ExcludeAssets="runtime" />
-    <PackageReference Include="Avalonia.Desktop" Version="12.1.0" ExcludeAssets="runtime" />
-    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.0" ExcludeAssets="runtime" />
-    <PackageReference Include="FluentAvaloniaUI" Version="3.0.1" ExcludeAssets="runtime" />
-    <PackageReference Include="FluentIcons.Avalonia" Version="2.1.331" ExcludeAssets="runtime" />
-    <PackageReference Include="LanMountainDesktop.PluginSdk" Version="5.0.0" ExcludeAssets="runtime;native" PrivateAssets="all" />
-    <None Include="plugin.json" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Avalonia / FluentAvalonia 由 AirAppSdk 传递，显式钉版本会导致加载期类型冲突。 -->
+    <PackageReference Include="LanMountainDesktop.AirAppSdk" Version="1.0.0" ExcludeAssets="runtime;native" PrivateAssets="all" />
+    <None Include="airapp.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Localization\*.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Assets\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
-
-  <Target Name="CleanPluginOutputBeforeBuild"
-          BeforeTargets="PrepareForBuild"
-          Condition="'$(DesignTimeBuild)' != 'true'">
-    <RemoveDir Directories="$(MSBuildProjectDirectory)\bin\$(Configuration)\$(TargetFramework)\content" />
-  </Target>
 
 </Project>

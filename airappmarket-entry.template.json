@@ -1,5 +1,5 @@
 {
-  "minHostVersion": "0.8.6",
+  "minHostVersion": "0.9.1",
   "iconUrl": "",
   "projectUrl": "https://github.com/wwiinnddyy/LanDesktopHot",
   "readmeUrl": "https://raw.githubusercontent.com/wwiinnddyy/LanDesktopHot/main/README.md",
@@ -16,5 +16,5 @@
     "zhihu-hotlist"
   ],
   "settingsSections": [],
-  "releaseNotes": "Migrated to production Plugin SDK 5, Avalonia 12 and FluentAvalonia 3; retained the Zhihu hot-list widget, auto refresh, theme awareness and click-to-open behavior."
+  "releaseNotes": "AirApp SDK 1.0.0 release; Zhihu hot-list widget with auto refresh, theme awareness and click-to-open behavior."
 }

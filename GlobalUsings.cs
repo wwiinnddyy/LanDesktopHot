@@ -17,6 +17,6 @@ global using FluentIcons.Common;
 global using LanDesktopHot.Messages;
 global using LanDesktopHot.Models;
 global using LanDesktopHot.Services;
-global using LanMountainDesktop.PluginSdk;
+global using LanMountainDesktop.AirAppSdk;
 global using Microsoft.Extensions.DependencyInjection;
 global using Microsoft.Extensions.Hosting;

@@ -1,70 +1,53 @@
-name: LanDesktopHot Plugin CI
+name: CI
 
 on:
-  pull_request:
-    branches: [main, master]
   push:
-    branches: [main, master]
+    branches: [ main ]
+  pull_request:
   workflow_dispatch:
-
-env:
-  DOTNET_VERSION: "10.0.x"
-  LMD_REPOSITORY: wwiinnddyy/LanMountainDesktop
 
 permissions:
   contents: read
 
+env:
+  DOTNET_VERSION: '10.0.x'
+  PROJECT: LanDesktopHot.csproj
+
 jobs:
-  validate:
-    runs-on: windows-latest
+  build:
+    name: Build and package .laapp
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout plugin
+      - name: Checkout
         uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Checkout LanMountainDesktop
-        uses: actions/checkout@v7
-        with:
-          repository: ${{ env.LMD_REPOSITORY }}
-          fetch-depth: 0
-          path: LanMountainDesktop
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
+          dotnet-quality: 'preview'
 
-      - name: Initialize local Plugin SDK feed
-        shell: pwsh
-        run: |
-          .\scripts\Initialize-LocalPackageFeed.ps1 `
-            -FeedPath (Join-Path (Resolve-Path ".").Path "packages") `
-            -PluginSdkProjectPath (Resolve-Path ".\LanMountainDesktop\LanMountainDesktop.PluginSdk\LanMountainDesktop.PluginSdk.csproj").Path `
-            -CoreContractsProjectPath (Resolve-Path ".\LanMountainDesktop\LanMountainDesktop.Shared.Contracts\LanMountainDesktop.Shared.Contracts.csproj").Path `
-            -PluginIsolationContractsProjectPath (Resolve-Path ".\LanMountainDesktop\LanMountainDesktop.PluginIsolation.Contracts\LanMountainDesktop.PluginIsolation.Contracts.csproj").Path `
-            -SharedIpcProjectPath (Resolve-Path ".\LanMountainDesktop\LanMountainDesktop.Shared.IPC\LanMountainDesktop.Shared.IPC.csproj").Path
+      # AirApp SDK 发布在 GitHub Packages，读取也需要认证。
+      # 仓库需要配置一个带 read:packages 权限的 PAT 作为 LANMOUNTAIN_PACKAGES_TOKEN。
+      - name: Add LanMountain package source
+        run: >
+          dotnet nuget add source https://nuget.pkg.github.com/wwiinnddyy/index.json
+          --name lanmountain
+          --username ${{ github.actor }}
+          --password ${{ secrets.LANMOUNTAIN_PACKAGES_TOKEN }}
+          --store-password-in-clear-text
 
-      - name: Build, package and validate
-        shell: pwsh
-        run: .\scripts\build-local.ps1 -SkipLocalPackageFeed -Configuration Release
+      - name: Restore
+        run: dotnet restore ${{ env.PROJECT }}
 
-      - name: Resolve artifact name
-        id: metadata
-        shell: pwsh
-        run: |
-          $manifest = Get-Content .\plugin.json -Encoding UTF8 -Raw | ConvertFrom-Json
-          "asset_name=$($manifest.id).$($manifest.version).laapp" >> $env:GITHUB_OUTPUT
+      # 构建即打包：AirApp SDK 的 MSBuild target 产出 .laapp。
+      - name: Build and package
+        run: dotnet build ${{ env.PROJECT }} -c Release --no-restore
 
-      - name: Upload CI artifacts
+      - name: Upload .laapp
         uses: actions/upload-artifact@v7
         with:
-          name: landesktophot-plugin-ci
-          path: |
-            ${{ steps.metadata.outputs.asset_name }}
-            artifacts/market-manifest.json
-            artifacts/sha256.txt
-            artifacts/md5.txt
+          name: landesktophot-airapp
+          path: '*.laapp'
           if-no-files-found: error
-          retention-days: 14
