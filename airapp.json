@@ -2,7 +2,7 @@
   "id": "com.landesktop.hot",
   "name": "LanDesktopHot 热榜",
   "version": "1.0.0",
-  "apiVersion": "1.0.0",
+  "apiVersion": "1.0.1",
   "author": "LanDesktopHot",
   "description": "为阑山桌面提供知乎等平台的热榜资讯组件。",
   "entranceAssembly": "LanDesktopHot.dll",
