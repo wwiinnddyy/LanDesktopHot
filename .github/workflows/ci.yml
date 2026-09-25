@@ -12,6 +12,11 @@ permissions:
 env:
   DOTNET_VERSION: '10.0.x'
   PROJECT: LanDesktopHot.csproj
+  # NuGet.config 里的 lanmountain 源用这两个环境变量取凭据（源地址与凭据槽只在 NuGet.config 说一次）。
+  # 不要再跑 dotnet nuget add source：同名源已在 NuGet.config 里，add 直接失败；
+  # 而 update source 在 Linux runner 上会撞 "Password encryption is not supported on .NET Core for this platform"。
+  LANMOUNTAIN_PACKAGES_USER: ${{ github.actor }}
+  LANMOUNTAIN_PACKAGES_TOKEN: ${{ secrets.LANMOUNTAIN_PACKAGES_TOKEN }}
 
 jobs:
   build:
@@ -27,22 +32,6 @@ jobs:
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
           dotnet-quality: 'preview'
-
-      # AirApp SDK 发布在 GitHub Packages，读取也需要认证。
-      # 仓库需要配置一个带 read:packages 权限的 PAT 作为 LANMOUNTAIN_PACKAGES_TOKEN。
-      # 源地址的真源是本仓库的 NuGet.config（那里已经登记了名为 lanmountain 的源）。
-      # 这里只给它补凭据，不许再 add source：add 撞上同名源会直接失败
-      # （实测报 "The name specified has already been added to the list of available package sources."，
-      # 整条流水线在 Restore 之前就红）。update source 是幂等的，--configfile 指到仓库那份 NuGet.config，
-      # 只往 packageSourceCredentials 里写用户名与口令，不动源地址。
-      - name: Attach credentials to the LanMountain package source
-        run: >
-          dotnet nuget update source lanmountain
-          --source https://nuget.pkg.github.com/wwiinnddyy/index.json
-          --username ${{ github.actor }}
-          --password ${{ secrets.LANMOUNTAIN_PACKAGES_TOKEN }}
-          --store-password-in-clear-text
-          --configfile NuGet.config
 
       - name: Restore
         run: dotnet restore ${{ env.PROJECT }}
